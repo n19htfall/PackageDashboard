@@ -206,8 +206,7 @@ async def analyze(packages_dir: str, save_to_db: bool = True) -> None:
 
             filename = p.split("/")[-1].replace(".tar.gz",
                                                 "").replace(".tar.bz2", "")
-            if os.path.exists(f"./pkgdash/analyze/pypi/output/"):
-                os.makedirs(f"./pkgdash/analyze/pypi/output/", exist_ok=True)
+            os.makedirs(f"./pkgdash/analyze/pypi/output/", exist_ok=True)
             output_json_path = f"./pkgdash/analyze/pypi/output/{filename}.json"
             if not os.path.exists(output_json_path):
                 tar_path = _uncompress_if_gzip(p)
