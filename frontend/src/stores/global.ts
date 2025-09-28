@@ -1,6 +1,6 @@
 import { acceptHMRUpdate, defineStore } from 'pinia'
 
-const DEFAULT_BACKEND_URL = import.meta.env.VITE_DEFAULT_BACKEND_URL as string
+const DEFAULT_BACKEND_URL = "http://localhost:19428"
 
 export const useGlobalStore = defineStore('global', () => {
   if (!localStorage.getItem('backendUrl') || localStorage.getItem('backendUrl') !== DEFAULT_BACKEND_URL)
