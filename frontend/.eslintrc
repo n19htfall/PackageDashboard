@@ -1,0 +1,13 @@
+{
+  "extends": [
+    "@antfu",
+    "@unocss"
+  ],
+  "rules": {
+    "no-unused-vars": "off",
+    "no-console": "off",
+    "unused-imports/no-unused-imports": "off",
+    "unused-imports/no-unused-vars": "off",
+    "curly": "off",
+  }
+}

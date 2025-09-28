@@ -1,0 +1,23 @@
+dynaconf_merge = true
+
+[default]
+cache_path = "./cache/"
+log_level = "info"
+
+[default.os_repo]
+openeuler-2203sp1 = 'https://mirrors.tuna.tsinghua.edu.cn/openeuler/openEuler-22.03-LTS-SP1/'
+opensuse-tumbleweed = 'https://mirrors.tuna.tsinghua.edu.cn/opensuse/tumbleweed/repo/oss/'
+centos-8 = 'https://mirrors.tuna.tsinghua.edu.cn/centos/8-stream/'
+fedora-38 = 'https://mirrors.tuna.tsinghua.edu.cn/fedora/releases/38/'
+anolis-8 = 'https://mirrors.aliyun.com/anolis/8/'
+opencloudos-8 = 'https://mirrors.opencloudos.org/opencloudos/8/'
+
+[default.mongodb]
+url = "mongodb://localhost:27017"
+db = "pkgdash"
+
+[default.clickhouse]
+url = "http://localhost:8123"
+db = "gharchive"
+user = "default"
+password = ""

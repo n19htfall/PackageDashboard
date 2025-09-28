@@ -1,0 +1,11 @@
+.DS_Store
+frontend/.vite-ssg-dist
+frontend/.vite-ssg-temp
+frontend/*.local
+frontend/dist
+frontend/dist-ssr
+frontend/node_modules
+frontend/.env
+
+backend/.env
+backend/pkgdash/analyze/*/output

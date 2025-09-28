@@ -1,0 +1,19 @@
+# Python
+__pycache__
+*.py[cod]
+
+# macOS
+.DS_Store
+
+# IDE
+.idea
+.vscode
+
+# Cache
+.cache
+# Ignore dynaconf secret files
+.secrets.*
+
+.env
+downloader/
+pkgdash/analyze/*/output
