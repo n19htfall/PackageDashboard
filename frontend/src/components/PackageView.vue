@@ -1,21 +1,14 @@
 <script setup lang="ts">
 import type { Ref } from 'vue'
-import { ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import {
   NButton,
   NCard,
-  NCollapseTransition,
   NDivider,
   NEllipsis,
   NGradientText,
   NGrid,
   NGridItem,
-  NH1,
-  NH2,
-  NInput,
-  NInputGroup,
-  NModal,
-  NSpace,
   NTag,
   useMessage,
 } from 'naive-ui'
@@ -28,48 +21,32 @@ import ExpandMoreCard from '~/components/ExpandMoreCard.vue'
 import AlertItem from '~/components/AlertItem.vue'
 import PackageCard from '~/components/PackageCard.vue'
 import type { StatsCardProps } from '~/components/StatsCard.vue'
-// import BarChartCard from '~/components/BarChartCard.vue'
 import DependencyView from '~/components/DependencyView.vue'
 
 import { useLoading } from '~/composables/loading'
 import { showError } from '~/composables/error'
-import { getPackageAlerts, getPackageDependencies, getPackageDependents, getPackageInfo, getPackageSources, /* getPackageStats, */ getPackageTransitiveDependencies } from '~/api/package'
+import { getPackageAlerts, getPackageDependencies, getPackageDependents, getPackageInfo, getPackageRec, getPackageTransitiveDependencies } from '~/api/package'
 
 const loadingProvider = useLoading()
 const { isLoading, startLoading, finishLoading, errorLoading } = loadingProvider
 const message = useMessage()
 
 const defaultEmptyMsg = '...'
-const showDepGraph = ref(false)
 
 const { purl, constraint } = definePropsRefs<{
   purl: string
   constraint?: string
 }>()
-// const props = defineProps<{
-//   purl: string
-//   constraint?: string
-// }>()
+
 const pUrl = computed(() => {
   return purl.value ? purl.value : 'pkg::rpm/openeuler/Bear@3.0.20-3.oe2203sp1?arch=src&epoch=0&distro=openeuler-2203sp1'
 })
 const pUrlObj = computed(() => {
   return PackageURL.fromString(decodeURIComponent(pUrl.value).replace('@', '%40'))
 })
-// const pkgUrl = computed(() => `/pkg?purl=${purl.value}`)
-// console.log(pUrlObj.value)
-// console.log(pUrl.value)
+
 watch(purl, () => init())
 
-// enum StatsItems {
-//   PageRank = 'pagerank',
-// }
-
-// const chartNames: Record<StatsItems, string> = {
-//   pagerank: 'Package Centrality',
-// }
-
-// constData should be <key from dataorder: StatsCardProps>
 const cardData: Record<string, StatsCardProps> = {
   dependencies: {
     title: 'Dependencies',
@@ -92,25 +69,26 @@ const cardData: Record<string, StatsCardProps> = {
     colors: ['#56cdf3', '#719de3'],
     icon: 'ant-design:bar-chart-outlined',
   },
-  // pagerank: {
-  //   title: 'Centrality',
-  //   value: ref(0),
-  //   unit: '',
-  //   colors: ['#fcbc25', '#f68057'],
-  //   icon: 'ant-design:bar-chart-outlined',
-  // },
+  recommendations: {
+    title: 'Recommended',
+    value: ref(0),
+    unit: '',
+    colors: ['#fcbc25', '#f68057'],
+    icon: 'mdi:thumb-up-outline',
+  },
 }
 
 const packageInfo = ref<Package | null>(null)
-/**
- * Fetches and Updates the Package information
- * Don't chain promises, it will cause the waterfall effect
- * */
+
 async function fetchPackageInfo() {
   startLoading()
   try {
     packageInfo.value = await getPackageInfo(pUrl.value)
     finishLoading()
+    // 当获取到 info 后，如果存在 repo_url，则获取推荐
+    if (packageInfo.value?.repo_url) {
+      fetchPackageRec(packageInfo.value.repo_url)
+    }
   }
   catch (e) {
     errorLoading()
@@ -140,7 +118,6 @@ async function fetchPackageTransitiveDependencies() {
   startLoading()
   try {
     packageTransitiveDependencies.value = await getPackageTransitiveDependencies(pUrl.value)
-    console.log(packageTransitiveDependencies.value)
     finishLoading()
   }
   catch (e) {
@@ -172,132 +149,43 @@ async function fetchPackageAlers() {
   startLoading()
   try {
     packageAlert.value = await getPackageAlerts(pUrl.value)
+    if(packageAlert.value){
+      showAlerts.value = true;
+    }
     finishLoading()
+    // toggleShowAlerts()
   }
   catch (e) {
     packageAlert.value = null
     errorLoading()
     showError(message, e as Error)
   }
-  if (!packageAlert.value)
-    return null
+}
+
+const packageRec: Ref<Array<Package> | null> = ref(null)
+async function fetchPackageRec(url: string) {
+  startLoading()
+  try {
+    packageRec.value = await getPackageRec(url)
+    finishLoading()
+  }
+  catch (e) {
+    packageRec.value = [] // Fixed: Assign to packageRec, not packageAlert
+    errorLoading()
+    showError(message, e as Error)
+  }
+  if (packageRec.value) {
+    cardData.recommendations.value.value = packageRec.value.length
+  }
 }
 
 function getCVEUrl(cveid: string) {
   return `https://www.cvedetails.com/cve/${cveid}/`
 }
 
-// const MOCK_AXIS = [
-//   '2021-02-01T00:00:00',
-//   '2021-03-01T00:00:00',
-//   '2021-04-01T00:00:00',
-//   '2021-05-01T00:00:00',
-//   '2021-06-01T00:00:00',
-//   '2021-07-01T00:00:00',
-//   '2021-08-01T00:00:00',
-//   '2021-09-01T00:00:00',
-//   '2021-10-01T00:00:00',
-//   '2021-11-01T00:00:00',
-//   '2021-12-01T00:00:00',
-//   '2022-01-01T00:00:00',
-//   '2022-02-01T00:00:00',
-//   '2022-03-01T00:00:00',
-//   '2022-04-01T00:00:00',
-//   '2022-05-01T00:00:00',
-//   '2022-06-01T00:00:00',
-//   '2022-07-01T00:00:00',
-//   '2022-08-01T00:00:00',
-//   '2022-09-01T00:00:00',
-//   '2022-10-01T00:00:00',
-//   '2022-11-01T00:00:00',
-//   '2022-12-01T00:00:00',
-//   '2023-01-01T00:00:00',
-//   '2023-02-01T00:00:00',
-//   '2023-03-01T00:00:00',
-//   '2023-04-01T00:00:00',
-//   '2023-05-01T00:00:00',
-// ]
-// const MOCK_PAGERANK = [
-//   0.001735,
-//   0.002001,
-//   0.001735,
-//   0.001823,
-//   0.002192,
-//   0.002323,
-//   0.003894,
-//   0.003988,
-//   0.004192,
-//   0.004323,
-//   0.004894,
-//   0.004988,
-//   0.005192,
-//   0.005323,
-//   0.005894,
-//   0.005988,
-//   0.006792,
-//   0.005323,
-//   0.006894,
-//   0.004988,
-//   0.006192,
-//   0.005223,
-//   0.007894,
-//   0.006958,
-//   0.006192,
-//   0.005323,
-//   0.005874,
-//   0.005903,
-// ]
-
-// const barAxis = ref<Array<string>>([])
-// const barData: Record<StatsItems, Ref<Array<number>>> = {
-//   pagerank: ref([]),
-// }
-
-// const packageStats = ref<PackageStats[]>([])
-// async function fetchPackageStats() {
-//   let packageStats: PackageStats[] = []
-//   startLoading()
-//   try {
-//     packageStats = await getPackageStats(pUrl.value)
-//     finishLoading()
-//   }
-//   catch (e) {
-//     packageStats = []
-//     errorLoading()
-//     showError(message, e as Error)
-//   }
-
-//   // if (!packageStats) {
-//   //   return
-//   // }
-
-//   const dates = MOCK_AXIS
-//   const stats: Record<StatsItems, Array<number>> = {
-//     pagerank: MOCK_PAGERANK,
-//   }
-
-//   packageStats.sort((a, b) => {
-//     return new Date(a.stats_from).getTime() - new Date(b.stats_from).getTime()
-//   })
-
-//   for (const statsRecord of packageStats) {
-//     dates.push(new Date(statsRecord.stats_from).toLocaleDateString())
-//     stats.pagerank.push(statsRecord.pagerank)
-//   }
-
-//   // pick the last one
-//   cardData.pagerank.value.value = stats.pagerank[stats.pagerank.length - 1]
-
-//   // update the figures
-//   for (const key in barData) {
-//     const _key = key as StatsItems // Move type assertion here
-//     barData[_key].value = stats[_key]
-//   }
-//   barAxis.value = dates
-// }
-
 const PKG_GRID_SPAN = '0:24 640:12 960:8 1280:6 1920:4'
 const N_PKGS_DEFAULT = 4
+
 const showDependencies = ref(false)
 function toggleShowDependencies() {
   if (!showDependencies.value && packageDependencies.value.length > 100) {
@@ -306,6 +194,7 @@ function toggleShowDependencies() {
   }
   showDependencies.value = !showDependencies.value
 }
+
 const showDependents = ref(false)
 function toggleShowDependents() {
   if (!showDependents.value && packageDependents.value.length > 100) {
@@ -315,15 +204,34 @@ function toggleShowDependents() {
   showDependents.value = !showDependents.value
 }
 
+const showRecommendations = ref(false)
+function toggleShowRecommendations() {
+  if (!showRecommendations.value && packageRec.value && packageRec.value.length > 100) {
+    showError(message, 'Displaying too many packages freezes the browser. Working on a fix.')
+    return
+  }
+  showRecommendations.value = !showRecommendations.value
+}
+
+const showAlerts = ref(false)
+// function toggleShowAlerts() {
+  // if (!showAlerts.value && !packageAlert) {
+  //   showError(message, 'Displaying too many packages freezes the browser. Working on a fix.')
+  //   return
+  // }
+  // showAlerts.value = !showAlerts.value
+// }
+
 function init() {
   fetchPackageDependencies()
   fetchPackageDependents()
-  fetchPackageInfo()
-  // fetchPackageStats()
+  fetchPackageInfo() // fetchPackageRec is called inside fetchPackageInfo after getting repo_url
   fetchPackageAlers()
   fetchPackageTransitiveDependencies()
+  
   showDependencies.value = false
   showDependents.value = false
+  showRecommendations.value = false
 }
 init()
 
@@ -400,7 +308,7 @@ const iconName = computed(() => {
         </NCard>
       </NGridItem>
 
-      <NGridItem span="0:24 640:24 1280:12">
+      <NGridItem span="0:24 640:24 1280:12" v-if="showAlerts">
         <NCard :bordered="false" class="h-full w-full rounded-10px shadow-sm">
           <template #header>
             <NGradientText class="text-30px" type="error">
@@ -413,16 +321,16 @@ const iconName = computed(() => {
           </template>
 
           <div class="gap flex flex-col items-baseline gap-0.5em">
-            <AlertItem
+            <!-- <AlertItem
               v-if="!packageAlert?.license_compatibility" type="warning" icon="ant-design:info-circle-filled"
               title="License Compatible"
             >
               <a href="https://licenserec.com" target="_blank"> <span class="i-carbon-launch mr-1"> 1 </span>
                 LicenseRec</a>
               still not have detected this library.
-            </AlertItem>
+            </AlertItem> -->
             <AlertItem
-              v-else-if="packageAlert?.license_compatibility === 0" type="success"
+              v-if="packageAlert?.license_compatibility === 0" type="success"
               icon="ant-design:check-circle-filled" title="License Compatible"
             >
               <a href="https://licenserec.com" target="_blank"> <span class="i-carbon-launch mr-1"> 1 </span>
@@ -437,14 +345,14 @@ const iconName = computed(() => {
                 LicenseRec</a>
               discovered license compatibility issues.
             </AlertItem>
-            <AlertItem
+            <!-- <AlertItem
               v-else-if="packageAlert?.license_compatibility === 2" type="warning"
               icon="ant-design:book-filled" title="License Compatible"
             >
               <a href="https://licenserec.com" target="_blank"> <span class="i-carbon-launch mr-1"> 1 </span>
                 LicenseRec</a>
               don't support checking the compatibility of this license.
-            </AlertItem>
+            </AlertItem> -->
             <AlertItem
               v-if="packageAlert?.is_archived" type="warning" icon="ant-design:book-filled"
               title="Repository Status"
@@ -536,19 +444,36 @@ const iconName = computed(() => {
         />
       </NGridItem>
     </NGrid>
-    <DependencyView :deps="packageTransitiveDependencies.concat(packageDependents)" />
 
-    <!-- <NGrid :x-gap="16" :y-gap="16" :item-responsive="true">
+    <NGrid v-if="packageRec && packageRec.length > 0" :x-gap="16" :y-gap="16" :item-responsive="true">
       <NGridItem :span="PKG_GRID_SPAN">
         <BigStatsCard
-          :id="cardData.pagerank.id" :title="cardData.pagerank.title" :icon="cardData.pagerank.icon"
-          :value="cardData.pagerank.value" :unit="cardData.pagerank.unit" :colors="cardData.pagerank.colors"
+          :id="cardData.recommendations.id" 
+          :title="cardData.recommendations.title" 
+          :icon="cardData.recommendations.icon"
+          :value="cardData.recommendations.value" 
+          :unit="cardData.recommendations.unit" 
+          :colors="cardData.recommendations.colors"
         />
       </NGridItem>
-      <NGridItem span="0:24 640:12 960:16 1280:18 1920:20">
-        <BarChartCard title="Centrality Score" :data="barData.pagerank" :axis="barAxis" />
-      </ngriditem>
-    </NGrid> -->
+      <NGridItem
+        v-for="pkg in (showRecommendations ? packageRec : packageRec.slice(0, N_PKGS_DEFAULT))"
+        :key="pkg.purl" 
+        :span="PKG_GRID_SPAN"
+      >
+        <PackageCard :purl="pkg.purl" :constraint="pkg.description"/>
+      </NGridItem>
+      <NGridItem v-if="packageRec.length > N_PKGS_DEFAULT + 1" :span="PKG_GRID_SPAN">
+        <ExpandMoreCard
+          :show="showRecommendations" 
+          :count="packageRec.length - N_PKGS_DEFAULT"
+          @click="toggleShowRecommendations"
+        />
+      </NGridItem>
+    </NGrid>
+
+    <DependencyView :deps="packageTransitiveDependencies.concat(packageDependents)" />
+
   </div>
 </template>
 
@@ -556,28 +481,9 @@ const iconName = computed(() => {
 .package-container {
   display: flex;
   flex-direction: column;
-  align-items: center;
+  /* align-items: center;  Removed this to allow Grid to take full width properly if needed, usually better for grids */
   justify-content: center;
   gap: 16px;
 }
-
-.text-stroke-custom {
-  text-shadow: 0px 0px 5px black;
-}
-
-#container {
-  overflow: hidden;
-  width: 200px;
-}
-
-#inner {
-  overflow: hidden;
-  width: 2000px;
-}
-
-.child {
-  float: left;
-  width: 50px;
-  height: 50px;
-}
+/* ... other styles */
 </style>

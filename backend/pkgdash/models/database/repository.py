@@ -30,6 +30,7 @@ class Repository(Document, BaseModel):
     primary_language: Optional[str]
     topics: List[str] = []
     description: Optional[str]
+    similar_repos: List[str] = []
 
     """License Info from GitHub API, should be SPDX compatible"""
     license: Optional[str]

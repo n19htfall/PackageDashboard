@@ -14,7 +14,6 @@ from typing import AsyncGenerator, Tuple, Literal, List
 from zoneinfo import ZoneInfo
 from pkgdash.models.connector.mongo import create_engine
 from packageurl import PackageURL
-import argparse
 import requests
 import re
 
@@ -27,12 +26,43 @@ logger = logging.getLogger(__name__)
 with open("./osv_ecosystem_map.json", "r") as file:
     osv_ecosystem_map: dict = json.load(file)
 
-
 def extract_repo_path(github_url):
     match = re.search(r"github\.com/([^/]+/[^/]+)", github_url)
     if match:
         return match.group(1)
     return None
+
+CVE_RE = re.compile(r"(CVE-\d{4}-\d{4,})", re.IGNORECASE)
+
+def extract_cve_ids_from_vuln(vuln: dict) -> List[str]:
+    ids = set()
+    if not isinstance(vuln, dict):
+        return []
+    # check string fields
+    for field in ("id", "details", "summary"):
+        val = vuln.get(field)
+        if isinstance(val, str):
+            for m in CVE_RE.finditer(val):
+                ids.add(m.group(1).upper())
+    # check aliases list
+    aliases = vuln.get("aliases") or []
+    if isinstance(aliases, list):
+        for a in aliases:
+            if isinstance(a, str):
+                for m in CVE_RE.finditer(a):
+                    ids.add(m.group(1).upper())
+                if a.upper().startswith("CVE-"):
+                    ids.add(a.upper())
+    # check references for urls/comments that may include CVE
+    for ref in vuln.get("references", []) or []:
+        if not isinstance(ref, dict):
+            continue
+        for key in ("url", "comment", "type"):
+            v = ref.get(key) or ""
+            if isinstance(v, str):
+                for m in CVE_RE.finditer(v):
+                    ids.add(m.group(1).upper())
+    return list(ids)
 
 
 async def iterate_packages(distro_name: str = None) -> AsyncGenerator[Tuple[str, str], None]:
@@ -57,8 +87,7 @@ def get_vulns_by_commit(commit_sha: str) -> List[dict]:
 
 
 def get_vulns_by_package(ecosystem: str, name: str, version: str) -> List[dict]:
-    data = {"version": version, "package": {
-        "name": name, "ecosystem": ecosystem}}
+    data = {"version": version, "package": {"name": name, "ecosystem": ecosystem}}
     response = requests.post("https://api.osv.dev/v1/query", json=data)
     response_json: dict = response.json()
     vulns = response_json.get("vulns", None)
@@ -104,148 +133,73 @@ async def save_to_db(doc: PackageVulns, primary_key: dict) -> None:
     try:
         find_doc = await type(doc).find_one(primary_key)
         if find_doc:
-            await find_doc.update({"$set": doc.model_dump(exclude={"record_created_at"})})
-            logger.info(
-                f"Document {url_value} updated to {type(doc).__name__} database")
+            await find_doc.update({"$set": doc.dict(exclude={"record_created_at"})})
+            logger.info(f"Document {url_value} updated to {type(doc).__name__} database")
         else:
             await doc.save()
-            logger.info(
-                f"Document {url_value} saved to {type(doc).__name__} database")
+            logger.info(f"Document {url_value} saved to {type(doc).__name__} database")
     except Exception as e:
         logger.error(f"Saving document {url_value} error: {e}")
 
 
-async def find_osv_vulns(purl: str, repo_url: str) -> None:
-    try:
-        vulns = None
-        purl_obj = PackageURL.from_string(purl)
-
-        if repo_url:
-            auth = Auth.Token(os.getenv("GITHUB_TOKEN"))
-            gh = Github(auth=auth)
-            full_name = extract_repo_path(repo_url)
-            if full_name is None:
-                return
-            repo = gh.get_repo(full_name)
-            version_string = purl_obj.version or ""
-            version = (
-                version_string.split(
-                    "-")[0] if "-" in version_string else version_string
-            )
-            commit = get_release_commit(repo, version)
-            if commit is not None:
-                vulns = get_vulns_by_commit(commit_sha=commit.sha)
-            repo_is_archived = repo.archived
-            repo_n_contributors = repo.get_contributors().totalCount
-        else:
-            ecosys = osv_ecosystem_map.get(purl_obj.type)
-            vulns = get_vulns_by_package(
-                ecosystem=ecosys, name=purl_obj.name, version=purl_obj.version
-            )
-        ids = set()
-        if vulns is not None:
-            for vuln in vulns:
-                vuln_id = vuln.get("id")
-                if vuln_id and vuln_id.startswith("CVE"):
-                    ids.add(vuln_id)
-                else:
-                    aliases = vuln.get("aliases", [])
-                    cve_alias = next(
-                        (alias for alias in aliases if alias.startswith("CVE")),
-                        None,
-                    )
-                    if cve_alias:
-                        ids.add(cve_alias)
-                    elif vuln_id:
-                        ids.add(vuln_id)
-        ids_lst = list(ids)
-        pv = PackageVulns(
-            purl=purl,
-            repo_url=repo_url,
-            name=purl_obj.name,
-            version=version,
-            vulns=ids_lst,
-            commit_sha=commit.sha if commit else None,
-            is_archived=repo_is_archived,
-            n_contributors=repo_n_contributors,
-        )
-        pv_key: dict = {"purl": pv.purl, "repo_url": pv.repo_url}
-        await save_to_db(pv, pv_key)
-    except AttributeError as e:
-        return
-
-
 if __name__ == "__main__":
-    d = "pypi"
-
     async def main():
         await create_engine()
-
-        async for purl, repo_url in iterate_packages(d):
-            doc = await PackageVulns.find_one({"purl": purl, "repo_url": repo_url})
-            if doc:
-                continue
-            try:
-                vulns = None
-                purl_obj = PackageURL.from_string(purl)
-                if purl_obj.type != d:
-                    continue
-                if repo_url:
-                    auth = Auth.Token(os.getenv("GITHUB_TOKEN"))
-                    gh = Github(auth=auth)
-                    full_name = extract_repo_path(repo_url)
-                    if full_name is None:
-                        continue
-                    repo = gh.get_repo(full_name)
-                    version_string = purl_obj.version or ""
-                    version = (
-                        version_string.split(
-                            "-")[0] if "-" in version_string else version_string
-                    )
-                    commit = get_release_commit(repo, version)
-                    if commit is not None:
-                        vulns = get_vulns_by_commit(commit_sha=commit.sha)
-                    repo_is_archived = repo.archived
-                    repo_n_contributors = repo.get_contributors().totalCount
-                else:
-                    ecosys = osv_ecosystem_map.get(purl_obj.type)
-                    vulns = get_vulns_by_package(
-                        ecosystem=ecosys, name=purl_obj.name, version=purl_obj.version
-                    )
-                ids = set()
-                if vulns is not None:
-                    for vuln in vulns:
-                        vuln_id = vuln.get("id")
-                        if vuln_id and vuln_id.startswith("CVE"):
-                            ids.add(vuln_id)
-                        else:
-                            aliases = vuln.get("aliases", [])
-                            cve_alias = next(
-                                (alias for alias in aliases if alias.startswith("CVE")),
-                                None,
-                            )
-                            if cve_alias:
-                                ids.add(cve_alias)
-                            elif vuln_id:
-                                ids.add(vuln_id)
-                ids_lst = list(ids)
-                pv = PackageVulns(
-                    purl=purl,
-                    repo_url=repo_url,
-                    name=purl_obj.name,
-                    version=version,
-                    vulns=ids_lst,
-                    commit_sha=commit.sha if commit else None,
-                    is_archived=repo_is_archived,
-                    n_contributors=repo_n_contributors,
+        purl = "pkg:rpm/openeuler/libyang@1.0.184-5.oe2203sp1?arch=aarch64&epoch=0&distro=openeuler-2203sp1"
+        repo_url ="https://github.com/CESNET/libyang"
+        try:
+            vulns = None
+            purl_obj = PackageURL.from_string(purl)
+            if repo_url:
+                auth = Auth.Token("")
+                gh = Github(auth=auth)
+                full_name = extract_repo_path(repo_url)
+                repo = gh.get_repo(full_name)
+                version_string = purl_obj.version or ""
+                version = (
+                    version_string.split("-")[0] if "-" in version_string else version_string
                 )
-                pv_key: dict = {"purl": pv.purl, "repo_url": pv.repo_url}
-                await save_to_db(pv, pv_key)
-            except AttributeError as e:
-                print(f"属性错误: {e}, purl={purl}, 跳过")
-                continue
-            except Exception as e:
-                print(f"发生异常: {e}, purl={purl}, 跳过")
-                continue
+                commit = get_release_commit(repo, version)
+                if commit is not None:
+                    vulns = get_vulns_by_commit(commit_sha=commit.sha)
+                repo_is_archived = repo.archived
+                repo_n_contributors = repo.get_contributors().totalCount
+            ids = set()
+            if vulns is not None:
+                logger.debug("OSV returned %d vuln objects for purl=%s", len(vulns), purl)
+                for vuln in vulns:
+                    try:
+                        extracted = extract_cve_ids_from_vuln(vuln)
+                        if extracted:
+                            ids.update(extracted)
+                        else:
+                            vuln_id = vuln.get("id")
+                            if vuln_id:
+                                ids.add(vuln_id)
+                            else:
+                                logger.debug(
+                                    "No CVE ids extracted from vuln object for purl=%s — vuln preview: %s",
+                                    purl,
+                                    json.dumps(vuln, ensure_ascii=False)[:1000],
+                                )
+                    except Exception:
+                        logger.exception("Error extracting CVE ids from vuln for purl=%s", purl)
+            ids_lst = list(ids)
+            pv = PackageVulns(
+                purl=purl,
+                repo_url=repo_url,
+                name=purl_obj.name,
+                version=version,
+                vulns=ids_lst,
+                commit_sha=commit.sha if commit else None,
+                is_archived=repo_is_archived,
+                n_contributors=repo_n_contributors,
+            )
+            pv_key: dict = {"purl": pv.purl, "repo_url": pv.repo_url}
+            await save_to_db(pv, pv_key)
+        except AttributeError as e:
+            logger.warning("Error: %s, purl=%s, skip", e, purl)
+        except Exception:
+            logger.exception("Error processing purl=%s, skip", purl)
 
     asyncio.run(main())

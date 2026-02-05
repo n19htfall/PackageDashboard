@@ -46,3 +46,13 @@ async def get_repository_packages(url: str):
     if not res:
         raise HTTPException(status_code=404, detail=f"No associated packages for {url}")
     return res
+
+@api.get("/rec", response_model=List[Package])
+async def get_similar_packages(url: str):
+    repo = await Repository.find_one({"url": url})
+    res:List[Package] = []
+    for repo_url in repo.similar_repos:
+        pkg = await Package.find_one({"repo_url": repo_url})
+        if pkg:
+            res += [pkg]
+    return res
