@@ -30,9 +30,6 @@ pygithub = "^2.6.1"
 openai = "^1.93.2"
 packageurl-python = "^0.17.5"
 
-[tool.poetry.scripts]
-pkgdash-api = "pkgdash.serve.__main__:main"
-
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"

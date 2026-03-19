@@ -25,7 +25,7 @@ trap 'cleanup 130' INT TERM
 echo "Starting backend on http://127.0.0.1:19428 ..."
 (
   cd "$ROOT_DIR/backend"
-  exec poetry run pkgdash-api --reload
+  exec poetry run python -m pkgdash.serve --reload
 ) &
 PIDS+=($!)
 

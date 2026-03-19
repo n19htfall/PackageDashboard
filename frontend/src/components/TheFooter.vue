@@ -1,8 +1,16 @@
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
+import { availableLocales, loadLanguageAsync } from '~/modules/i18n'
 
+const i18n = useI18n({ useScope: 'global' })
 const router = useRouter()
 
+async function toggleLocales() {
+  // change to some real logic
+  const locales = availableLocales
+  const newLocale = locales[(locales.indexOf(i18n.locale.value) + 1) % locales.length]
+  await loadLanguageAsync(newLocale)
+}
 </script>
 
 <template>
@@ -11,11 +19,11 @@ const router = useRouter()
       <div i-carbon-arrow-left />
     </a>
 
-    <RouterLink icon-btn to="/" :title="t('button.home')">
+    <RouterLink icon-btn to="/" :title="i18n.t('button.home')">
       <div i-carbon-campsite />
     </RouterLink>
 
-    <button icon-btn :title="t('button.toggle_dark')" @click="toggleDark()">
+    <button icon-btn :title="i18n.t('button.toggle_dark')" @click="toggleDark()">
       <div i="carbon-sun dark:carbon-moon" />
     </button>
 

@@ -2,24 +2,28 @@ import type { Locale } from 'vue-i18n'
 import { createI18n } from 'vue-i18n'
 import { type UserModule } from '~/types'
 
-// Import i18n resources
-// https://vitejs.dev/guide/features.html#glob-import
-//
-// Don't need this? Try vitesse-lite: https://github.com/antfu/vitesse-lite
+const DEFAULT_LOCALE = 'en'
+
+const localeModules = import.meta.glob('../../locales/*.yml', { eager: true }) as Record<
+  string,
+  { default: Record<string, string> }
+>
+
+const messages = Object.fromEntries(
+  Object.entries(localeModules)
+    .map(([path, module]) => [path.match(/([\w-]*)\.yml$/)?.[1], module.default])
+    .filter(([locale]) => Boolean(locale)),
+) as Record<Locale, Record<string, string>>
+
 const i18n = createI18n({
   legacy: false,
-  locale: '',
-  messages: {},
+  globalInjection: true,
+  locale: DEFAULT_LOCALE,
+  fallbackLocale: DEFAULT_LOCALE,
+  messages,
 })
 
-const localesMap = Object.fromEntries(
-  Object.entries(import.meta.glob('../../locales/*.yml'))
-    .map(([path, loadLocale]) => [path.match(/([\w-]*)\.yml$/)?.[1], loadLocale]),
-) as Record<Locale, () => Promise<{ default: Record<string, string> }>>
-
-export const availableLocales = Object.keys(localesMap)
-
-const loadedLanguages: string[] = []
+export const availableLocales = Object.keys(messages)
 
 function setI18nLanguage(lang: Locale) {
   i18n.global.locale.value = lang as any
@@ -29,22 +33,13 @@ function setI18nLanguage(lang: Locale) {
 }
 
 export async function loadLanguageAsync(lang: string): Promise<Locale> {
-  // If the same language
-  if (i18n.global.locale.value === lang)
-    return setI18nLanguage(lang)
+  if (!messages[lang as Locale])
+    return setI18nLanguage(DEFAULT_LOCALE)
 
-  // If the language was already loaded
-  if (loadedLanguages.includes(lang))
-    return setI18nLanguage(lang)
-
-  // If the language hasn't been loaded yet
-  const messages = await localesMap[lang]()
-  i18n.global.setLocaleMessage(lang, messages.default)
-  loadedLanguages.push(lang)
-  return setI18nLanguage(lang)
+  return setI18nLanguage(lang as Locale)
 }
 
 export const install: UserModule = ({ app }) => {
   app.use(i18n)
-  loadLanguageAsync('en')
+  setI18nLanguage(DEFAULT_LOCALE)
 }

@@ -1,10 +1,10 @@
 <script setup lang="ts">
-const { t } = useI18n()
+const i18n = useI18n({ useScope: 'global' })
 </script>
 
 <template>
   <div>
-    {{ t('not-found') }}
+    {{ i18n.t('not-found') }}
   </div>
 </template>
 

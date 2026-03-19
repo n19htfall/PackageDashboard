@@ -17,7 +17,7 @@ require_command pnpm
 echo "Installing backend dependencies with Poetry..."
 (
   cd "$ROOT_DIR/backend"
-  poetry install
+  poetry install --no-root
 )
 
 echo "Installing frontend dependencies with pnpm..."
