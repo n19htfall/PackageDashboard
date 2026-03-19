@@ -100,3 +100,14 @@ export async function getPackageDistros() {
     method: 'get',
   })
 }
+
+
+export async function getPackageRec(url: string) {
+  return await asyncRequest<Array<Package>>({
+    url: '/api/repo/rec',
+    method: 'get',
+    data: {
+      url,
+    },
+  })
+}

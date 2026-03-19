@@ -85,7 +85,6 @@ async function fetchPackageInfo() {
   try {
     packageInfo.value = await getPackageInfo(pUrl.value)
     finishLoading()
-    // 当获取到 info 后，如果存在 repo_url，则获取推荐
     if (packageInfo.value?.repo_url) {
       fetchPackageRec(packageInfo.value.repo_url)
     }
@@ -214,18 +213,11 @@ function toggleShowRecommendations() {
 }
 
 const showAlerts = ref(false)
-// function toggleShowAlerts() {
-  // if (!showAlerts.value && !packageAlert) {
-  //   showError(message, 'Displaying too many packages freezes the browser. Working on a fix.')
-  //   return
-  // }
-  // showAlerts.value = !showAlerts.value
-// }
 
 function init() {
   fetchPackageDependencies()
   fetchPackageDependents()
-  fetchPackageInfo() // fetchPackageRec is called inside fetchPackageInfo after getting repo_url
+  fetchPackageInfo()
   fetchPackageAlers()
   fetchPackageTransitiveDependencies()
   
@@ -345,14 +337,6 @@ const iconName = computed(() => {
                 LicenseRec</a>
               discovered license compatibility issues.
             </AlertItem>
-            <!-- <AlertItem
-              v-else-if="packageAlert?.license_compatibility === 2" type="warning"
-              icon="ant-design:book-filled" title="License Compatible"
-            >
-              <a href="https://licenserec.com" target="_blank"> <span class="i-carbon-launch mr-1"> 1 </span>
-                LicenseRec</a>
-              don't support checking the compatibility of this license.
-            </AlertItem> -->
             <AlertItem
               v-if="packageAlert?.is_archived" type="warning" icon="ant-design:book-filled"
               title="Repository Status"
