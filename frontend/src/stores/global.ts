@@ -1,17 +1,10 @@
 import { acceptHMRUpdate, defineStore } from 'pinia'
 
-const DEFAULT_BACKEND_URL = "http://localhost:19428"
+const apiBaseUrl = import.meta.env.VITE_API_BASE_URL?.trim() || ''
 
 export const useGlobalStore = defineStore('global', () => {
-  if (!localStorage.getItem('backendUrl') || localStorage.getItem('backendUrl') !== DEFAULT_BACKEND_URL)
-    localStorage.setItem('backendUrl', DEFAULT_BACKEND_URL)
-  const backendUrl = localStorage.getItem('backendUrl') || DEFAULT_BACKEND_URL
-  function setBackendUrl(url: string) {
-    localStorage.setItem('backendUrl', url)
-  }
   return {
-    backendUrl,
-    setBackendUrl,
+    backendUrl: apiBaseUrl,
   }
 })
 

@@ -1,6 +1,9 @@
 dynaconf_merge = true
 
 [default]
+api_host = "0.0.0.0"
+api_port = 19428
+frontend_urls = ["http://localhost:19429"]
 cache_path = "./cache/"
 log_level = "info"
 

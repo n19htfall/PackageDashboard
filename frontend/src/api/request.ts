@@ -1,9 +1,6 @@
 import axios from 'axios'
 import type { AxiosRequestConfig } from 'axios'
 
-import qs from 'qs'
-import { useGlobalStore } from '~/stores/global'
-
 export type RequestMethod = 'get' | 'post' | 'put' | 'delete'
 
 export interface RequestParam {
@@ -14,9 +11,7 @@ export interface RequestParam {
   headers?: any
 }
 
-function paramsSerializer(params: any) {
-  return qs.stringify(params, { arrayFormat: 'repeat' })
-}
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.trim() || undefined
 
 /**
    * async request
@@ -27,8 +22,6 @@ export async function asyncRequest<T>(param: RequestParam): Promise<T> {
   const { url } = param
   const method = param.method || 'get'
   const headers = param.headers || {}
-  const globalStore = useGlobalStore()
-  const backendUrl = globalStore.backendUrl
 
   let response = null
 
@@ -36,7 +29,7 @@ export async function asyncRequest<T>(param: RequestParam): Promise<T> {
     response = await axios.request<T | ValidationError>(
       {
         url,
-        baseURL: backendUrl,
+        baseURL: API_BASE_URL,
         params: param.data,
         method,
         headers,
@@ -47,7 +40,7 @@ export async function asyncRequest<T>(param: RequestParam): Promise<T> {
   }
   else {
     response = await axios.request<T | ValidationError>(
-      { url, baseURL: backendUrl, data: param.data, method, headers })
+      { url, baseURL: API_BASE_URL, data: param.data, method, headers })
   }
 
   // is status code 2xx?

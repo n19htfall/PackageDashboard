@@ -13,6 +13,7 @@ __pycache__
 .cache
 # Ignore dynaconf secret files
 .secrets.*
+!.secrets.example.toml
 
 .env
 downloader/

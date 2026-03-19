@@ -1,41 +1,17 @@
 import argparse
-import logging
-import os
 
 import uvicorn
-from fastapi import FastAPI
+from pkgdash import logger
+from pkgdash.config import get_runtime_config
 
-from pkgdash import settings, logger
-from pkgdash.models.connector.mongo import create_engine
-from .routes import pkg, repo
-from fastapi.middleware.cors import CORSMiddleware
-from contextlib import asynccontextmanager
-from ..config import FRONTED_URL
+from .app import app
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    await create_engine()
-    yield
-
-
-app = FastAPI(title="Package Dashboard", version="0.1.0", lifespan=lifespan)
-
-app.include_router(pkg.api, prefix="/api/pkg", tags=["Package"])
-app.include_router(repo.api, prefix="/api/repo", tags=["Repository"])
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[FRONTED_URL],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-if __name__ == "__main__":
+def main():
+    runtime_config = get_runtime_config()
     parser = argparse.ArgumentParser("Package Dashboard Server")
-    parser.add_argument("-p", "--port", default=19428, type=int, help="Port to run on")
-    parser.add_argument("-o", "--host", default="0.0.0.0", help="Host to run on")
+    parser.add_argument("-p", "--port", default=runtime_config.api_port, type=int, help="Port to run on")
+    parser.add_argument("-o", "--host", default=runtime_config.api_host, help="Host to run on")
     parser.add_argument(
         "-r",
         "--reload",
@@ -44,11 +20,15 @@ if __name__ == "__main__":
         help="Reload on code changes",
     )
     args = parser.parse_args()
-    logger.info(f"Starting uvicorn server on port {args.port}")
+    logger.info("Starting Package Dashboard API on {}:{}", args.host, args.port)
 
     uvicorn.run(
-        "pkgdash.serve.__main__:app",
+        "pkgdash.serve.app:app",
         host=args.host,
         port=args.port,
         reload=args.reload,
     )
+
+
+if __name__ == "__main__":
+    main()
